@@ -196,8 +196,8 @@ function render(interpolate=true){
 async function chooseTask(task){
  const gen=++state.generation;pause();state.task=task;$('status').textContent='正在加载真实轨迹…';
  const clips=available(),c=clips.find(c=>c.task===task);if(!c)throw Error('该条件没有有效数据');await ensureExplorer(clipRecord({meta:c}));const clip=await loadClip(c);if(gen!==state.generation)return;
- for(const b of $('tasks').querySelectorAll('[data-group]'))b.classList.toggle('active',b.dataset.group===(abstracts.includes(task)?'ABSTRACT':task));
- $('abstractOperations').hidden=!abstracts.includes(task);for(const b of $('abstractOperations').children)b.classList.toggle('active',b.dataset.task===task);$('operationRequirement').hidden=!abstracts.includes(task);$('operationRequirement').textContent=operationRequirements[task]||'';
+ for(const b of $('tasks').querySelectorAll('[data-group]')){const active=b.dataset.group===(abstracts.includes(task)?'ABSTRACT':task);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));}
+ for(const b of $('abstractOperations').children){const active=b.dataset.task===task;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));}$('operationRequirement').textContent=operationRequirements[task]||'选择上方操作，直接查看对应回放。';
  A.setClip(clip);state.time=Math.max(0,clip.meta.representative_epoch_ms-clip.meta.start_epoch_ms);anchor();
  await loadB(gen);if(gen!==state.generation)return;
  await populateSegments();if(gen!==state.generation)return;populateDwell();drawTimeline();render(false);$('status').textContent='真实标记点回放。鼠标拖动旋转，滚轮缩放；未知触摸状态不计入稳定停留。';
@@ -230,14 +230,19 @@ function thumbnail(canvas,clip){
 }
 async function changeDataset(){
  pause();state.cache.clear();const clips=available();if(!clips.length){$('status').textContent='这个组合没有有效记录，请选择其他手机或情境。';return;}
- const tasks=state.index.tasks;options($('taskB'),tasks.filter(t=>clips.some(c=>c.task===t.id)).map(t=>[t.id,t.name]),$('taskB').value||'TAP');$('tasks').innerHTML='';$('abstractOperations').innerHTML='';
+ const tasks=state.index.tasks;options($('taskB'),tasks.filter(t=>clips.some(c=>c.task===t.id)).map(t=>[t.id,t.name]),$('taskB').value||'TAP');$('tasks').innerHTML='';
  for(const [i,g] of ['READ','WRITE','ABSTRACT'].entries()){
   const op=g==='ABSTRACT'?'DRAG':g,card=document.createElement('article');card.className='task-group';
   const b=document.createElement('button');b.className='task';b.dataset.group=g;b.disabled=!(g==='ABSTRACT'?clips.some(c=>abstracts.includes(c.task)):clips.some(c=>c.task===g));
   b.innerHTML=`<span class="num">0${i+1}</span><b>${g==='ABSTRACT'?'抽象输入':labels[g]}</b><small>${g==='ABSTRACT'?'Abstract input':g==='READ'?'Reading':'Writing'}</small><canvas data-preview="${op}" aria-label="真实典型姿态"></canvas>`;
-  b.onclick=()=>chooseTask(g==='ABSTRACT'?(abstracts.includes(state.task)?state.task:clips.find(c=>abstracts.includes(c.task)).task):g).catch(error);card.append(b);const p=document.createElement('p');p.className='task-requirement';p.textContent=requirements[g];card.append(p);$('tasks').append(card);
+  b.onclick=()=>chooseTask(g==='ABSTRACT'?(abstracts.includes(state.task)?state.task:clips.find(c=>abstracts.includes(c.task)).task):g).catch(error);card.append(b);const p=document.createElement('p');p.className='task-requirement';p.textContent=requirements[g];card.append(p);
+  if(g==='ABSTRACT'){
+   const operations=document.createElement('div');operations.id='abstractOperations';operations.className='abstract-operations';operations.setAttribute('role','group');operations.setAttribute('aria-label','抽象输入操作');
+   for(const t of tasks.filter(t=>abstracts.includes(t.id))){const button=document.createElement('button');button.type='button';button.dataset.task=t.id;button.textContent=t.name;button.disabled=!clips.some(c=>c.task===t.id);button.onclick=()=>chooseTask(t.id).catch(error);operations.append(button);}
+   const requirement=document.createElement('p');requirement.id='operationRequirement';requirement.className='operation-requirement';requirement.setAttribute('aria-live','polite');card.append(operations,requirement);
+  }
+  $('tasks').append(card);
  }
- for(const t of tasks.filter(t=>abstracts.includes(t.id))){const b=document.createElement('button');b.dataset.task=t.id;b.textContent=t.name;b.disabled=!clips.some(c=>c.task===t.id);b.onclick=()=>chooseTask(t.id).catch(error);$('abstractOperations').append(b);}
  const device=state.index.devices[$('phone').value];$('deviceInfo').textContent=`机身（宽×高×厚）${device.size.join(' × ')} mm；屏幕（宽×高）${device.screen.join(' × ')} mm。尺寸取自官方处理代码。`;
  const task=clips.some(c=>c.task===state.task)?state.task:clips[0].task;await chooseTask(task);
  const rec=recordId();await Promise.all(clips.filter(c=>['READ','WRITE','DRAG'].includes(c.task)).map(async c=>{const clip=await loadClip(c);if(rec!==recordId())return;const canvas=$('tasks').querySelector(`[data-preview="${c.task}"]`);if(canvas)thumbnail(canvas,clip);}));
