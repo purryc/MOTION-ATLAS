@@ -22,6 +22,7 @@ def main():
  SITE.mkdir(parents=True,exist_ok=True);out=SITE/'outputs';out.mkdir(exist_ok=True)
  shutil.copytree(B/'src/viewer',SITE/'viewer',dirs_exist_ok=True);shutil.copy(B/'src/viewer/index.html',SITE/'index.html')
  shutil.copytree(B/'src/node_modules/three/build',SITE/'vendor/build',dirs_exist_ok=True)
+ shutil.copy(B/'src/node_modules/three/LICENSE',SITE/'vendor/LICENSE')
  # OrbitControls imports only math utilities from the Three package.
  shutil.copytree(B/'src/node_modules/three/examples/jsm/controls',SITE/'vendor/examples/jsm/controls',dirs_exist_ok=True)
  shutil.copytree(B/'src/node_modules/three/examples/jsm/math',SITE/'vendor/examples/jsm/math',dirs_exist_ok=True)
@@ -65,6 +66,10 @@ def main():
   print('Static records',n+1,'/',len(paths),'episodes',count,'elapsed',round(time.time()-starttime),flush=True)
  for name in ['index.json','report-controls.json','report.json']:
   write(out/'explorer'/name,json.loads((B/'outputs/explorer'/name).read_text()))
+ from zipfile import ZipFile,ZIP_DEFLATED
+ with ZipFile(out/'processed-tables.zip','w',ZIP_DEFLATED) as z:
+  for name in ['coverage.csv','participant_summary.csv','participant_bootstrap.csv','paired_comparisons.csv','explorer_dwell_cells.csv','explorer_dwell_episodes.csv','explorer_height_cells.csv','whole_hand_task_summary.csv']:
+   z.write(B/'data'/name,'data/'+name)
  (SITE/'.nojekyll').touch()
  sizes=sum(p.stat().st_size for p in SITE.rglob('*') if p.is_file());assert sizes<1_000_000_000,f'Pages site too large: {sizes}'
  manifest=dict(name='MOTION ATLAS',upstream_commit=index['upstream_commit'],representatives=len(index['clips']),maximal_dwell_episodes=count,task_threshold_cells=len(checks),site_bytes=sizes,coordinate_unit='mm',sample_rate_hz=240,frames='lossless float32 source samples; no resampling',publication='green Home Zone frames in playback; 3D heat maps in report only')
