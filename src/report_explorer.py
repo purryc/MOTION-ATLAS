@@ -16,6 +16,9 @@ def enhance_report(content):
  return add_heat(content.replace('</body>','<script type="module" src="../viewer/report-controls.js"></script></body>'))
 
 def add_heat(content):
+ content=content.replace('Le 2019 六任务姿态分析','MOTION ATLAS · 六任务姿态分析').replace('LE 2019 / POSTURE ANALYSIS','MOTION ATLAS / LE 2019').replace('href="/"','href="../"')
+ if 'processed-tables.zip' not in content:
+  content=content.replace('<h2>来源与可复现性</h2>','<h2>来源与可复现性</h2><p><a href="https://github.com/purryc/MOTION-ATLAS">MOTION ATLAS 源代码</a> · <a href="processed-tables.zip" download>下载处理后统计与停留表格</a></p>')
  if 'report-heat.js' in content:return content
  imports='<script type="importmap">{"imports":{"three":"../vendor/build/three.module.js","three/addons/":"../vendor/examples/jsm/"}}</script>'
  content=content.replace('</head>',imports+'</head>').replace('src="/viewer/report-controls.js"','src="../viewer/report-controls.js"')
