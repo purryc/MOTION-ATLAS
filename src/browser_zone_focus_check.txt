@@ -1,0 +1,12 @@
+async (page) => {
+ await page.locator('#segment').selectOption('representative');await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.id==='P3_N6_seated_READ'&&document.querySelector('#status').textContent.startsWith('真实'));
+ await page.locator('[data-view="oblique"]').click();const before=await page.evaluate(()=>postureViewer.stages.A.camera.position.distanceTo(postureViewer.stages.A.controls.target));
+ await page.locator('#focusZone').click();
+ const focus=await page.evaluate(()=>{const a=postureViewer.stages.A,centre=a.idlezone.box.getCenter(a.controls.target.clone());return {distance:a.camera.position.distanceTo(a.controls.target),target_error_mm:centre.distanceTo(a.controls.target),size:a.idlezone.volume.scale.toArray(),visible:a.idlezone.volume.visible,caption:a.zoneCaption};});
+ if(focus.distance>=before||focus.target_error_mm>1e-6||!focus.visible)throw Error('Home focus mismatch');await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/home-zone-focus.png',fullPage:true});
+ await page.locator('[data-view="oblique"]').click();const restored=await page.evaluate(()=>postureViewer.stages.A.camera.position.distanceTo(postureViewer.stages.A.controls.target));if(restored<100)throw Error('Full view restore failed');
+ await page.locator('[data-task="TAP"]').click();await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.task==='TAP'&&document.querySelector('[data-task="TAP"]').classList.contains('active')&&document.querySelector('#status').textContent.startsWith('真实'));
+ if((await page.locator('#focusZone').textContent())!=='聚焦任务活动区')throw Error('Fallback focus label mismatch');await page.locator('#focusZone').click();const activity=await page.evaluate(()=>{const a=postureViewer.stages.A;return {target_error_mm:a.zone.box.getCenter(a.controls.target.clone()).distanceTo(a.controls.target),visible:a.zone.volume.visible};});if(activity.target_error_mm>1e-6)throw Error('Activity focus mismatch');
+ await page.locator('[data-view="oblique"]').click();await page.locator('[data-task="READ"]').click();await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.task==='READ'&&document.querySelector('[data-task="READ"]').classList.contains('active')&&document.querySelector('#status').textContent.startsWith('真实'));
+ return {home:focus,restore_distance:restored,activity};
+}

@@ -1,0 +1,13 @@
+.venv/
+node_modules/
+__pycache__/
+.tmp/
+.playwright-cli/
+*.npz
+*.bin
+*.bin.gz
+*.zip
+*.tar.gz
+sources/phone_dataset/
+outputs/
+qa/

@@ -1,0 +1,50 @@
+async (page) => {
+ const results=[];
+ await page.waitForFunction(()=>window.postureViewer&&document.querySelector('#status').textContent.startsWith('真实'));
+ for(const task of ['READ','WRITE','TAP','DRAG','SCROLL_V','SCROLL_H']){
+  await page.locator(`[data-task="${task}"]`).click();
+  await page.waitForFunction(t=>window.postureViewer.stages.A.clip.meta.task===t&&document.querySelector('#status').textContent.startsWith('真实'),task);
+  results.push({task,frames:await page.evaluate(()=>window.postureViewer.stages.A.clip.meta.frames)});
+ }
+ await page.locator('[data-task="READ"]').click();
+ await page.waitForFunction(()=>window.postureViewer.stages.A.clip.meta.task==='READ'&&document.querySelector('#status').textContent.startsWith('真实'));
+ const coordinates=await page.evaluate(()=>{
+  const a=postureViewer.stages.A,r=a.current.values,md=a.clip.meta;
+  const errors=a.points.map((p,m)=>{const j=2+m*3;return p.visible?Math.max(Math.abs(p.position.x-(md.device.size[0]/2-r[j])),Math.abs(p.position.y-(md.device.size[1]/2-r[j+1])),Math.abs(p.position.z-r[j+2])):0});
+  return {max_mesh_coordinate_error_mm:Math.max(...errors)};
+ });
+ const original=await page.evaluate(()=>postureViewer.stages.A.current.values[1]);
+ await page.locator('#next').click();
+ const stepped=await page.evaluate(()=>postureViewer.stages.A.current.values[1]);
+ if(stepped!==original+1)throw Error('Source-frame stepping failed');
+ await page.locator('#scrub').fill('0');await page.locator('#scrub').dispatchEvent('input');
+ await page.locator('#rate').selectOption('0.25');
+ await page.locator('#play').click();await page.waitForTimeout(1200);await page.locator('#play').click();
+ const slow=await page.evaluate(()=>postureViewer.state.time);if(slow<270||slow>420)throw Error('Slow playback clock mismatch '+slow);
+ await page.locator('#rate').selectOption('1');await page.locator('#scrub').fill('0');await page.locator('#scrub').dispatchEvent('input');
+ await page.locator('#play').click();await page.waitForTimeout(1200);await page.locator('#play').click();
+ const normal=await page.evaluate(()=>postureViewer.state.time);if(normal<1100||normal>1600)throw Error('Real-time clock mismatch '+normal);
+ const missing=await page.evaluate(()=>{
+  const v=postureViewer,a=v.stages.A,{data,meta}=a.clip;let found=null;
+  for(let k=0;k<meta.frames&&!found;k++)for(let m=0;m<25;m++){if(!Number.isFinite(data[k*meta.stride+2+m*3])){v.state.time=data[k*meta.stride];v.render(false);found={frame:k,marker:m,hidden:!a.points[m].visible,adjacent_bones_hidden:a.bones.filter(b=>b.a===m||b.b===m).every(b=>!b.mesh.visible)};break;}}
+  return found;
+ });
+ if(missing&&!missing.hidden)throw Error('Missing marker still visible');
+ await page.locator('#trajectory').check();await page.locator('#zone').check();await page.locator('#idlezone').check();
+ await page.locator('#world').click();
+ const world=await page.evaluate(()=>{const a=postureViewer.stages.A,r=a.current.values;let max=0;for(let m=0;m<25;m++)if(a.points[m].visible){const j=77+m*3;const want=[r[j]-a.origin.x,r[j+1]-a.origin.y,r[j+2]-a.origin.z];max=Math.max(max,...a.points[m].position.toArray().map((x,i)=>Math.abs(x-want[i])));}return {max_mesh_coordinate_error_mm:max,phone_visible:a.phone.visible};});
+ for(const view of ['front','back','side','oblique'])await page.locator(`[data-view="${view}"]`).click();
+ await page.locator('#local').click();await page.locator('#compare').check();
+ await page.waitForFunction(()=>postureViewer.stages.B?.clip);
+ await page.locator('#taskB').selectOption('WRITE');await page.waitForFunction(()=>postureViewer.stages.B.clip.meta.task==='WRITE');
+ const alignAvailable=await page.locator('#align').isEnabled();if(alignAvailable)await page.locator('#align').check();
+ const dl=page.waitForEvent('download');await page.locator('#export').click();await (await dl).saveAs('/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/export.png');
+ await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/dual-view.png',fullPage:true});
+ await page.locator('#compare').uncheck();await page.locator('#segment').selectOption('segment-0');
+ await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.id.length===24);
+ const segment=await page.evaluate(()=>({frames:postureViewer.stages.A.clip.meta.frames,duration_ms:postureViewer.stages.A.clip.meta.duration_ms}));
+ await page.locator('#segment').selectOption('representative');await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.id.includes('READ'));
+ await page.setViewportSize({width:700,height:1080});await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/narrow-view.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:1160});
+ return {tasks:results,coordinates,source_frame_step:stepped-original,slow_playback_ms:slow,real_time_playback_ms:normal,missing_marker:missing,world,dual_window:true,event_alignment_enabled:alignAvailable,png_export:true,on_demand_segment:segment,responsive_screenshot:true};
+}

@@ -1,0 +1,44 @@
+name: Deploy MOTION ATLAS
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Versioned site release tag
+        required: true
+        type: string
+      sha256:
+        description: SHA256 of public-site.tar.gz
+        required: true
+        type: string
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified static site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          SITE_SHA256: ${{ inputs.sha256 }}
+        run: |
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern public-site.tar.gz
+          echo "$SITE_SHA256  public-site.tar.gz" | sha256sum -c -
+          mkdir public
+          tar -xzf public-site.tar.gz -C public
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,29 @@
+async(page)=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.waitForFunction(()=>window.postureViewer&&document.querySelector('#status').textContent.startsWith('真实'));
+ await page.setViewportSize({width:1440,height:1360});
+ const thresholds=[];
+ for(const t of [100,200,300,400,500,600]){
+  await page.locator('#dwellThreshold').fill(String(t));await page.locator('#dwellThreshold').dispatchEvent('input');
+  const s=await page.evaluate(()=>{const v=postureViewer,a=v.stages.A,d=v.state.explorerRecords.P3_N6_seated.tasks.READ.thresholds[String(v.state.dwellThreshold)];return {threshold:v.state.dwellThreshold,summary:d.summary,label:a.dwellLabel.textContent,heat:a.heatCaption,heat_visible:a.heatRoot.visible,instances:a.heatMesh.count};});
+  if(!s.label.includes(s.threshold+' ms')||!s.heat_visible)throw Error('Threshold display mismatch');thresholds.push(s);
+ }
+ if(thresholds[0].summary.episodes!==39||thresholds[3].summary.episodes!==1||thresholds[5].summary.episodes!==0||!thresholds[5].heat.startsWith('活动'))throw Error('Real threshold/fallback mismatch');
+ await page.locator('#dwellThreshold').fill('400');await page.locator('#dwellThreshold').dispatchEvent('input');await page.locator('#dwellSelect').selectOption('0');await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.id.length===24);
+ const episode=await page.evaluate(()=>{const a=postureViewer.stages.A;return {source_frame:a.current.values[1],caption:a.dwellLabel.textContent,id:a.clip.meta.id};});if(episode.source_frame!==92854||!episode.caption.includes('当前本次'))throw Error('Episode jump mismatch');
+ await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/explorer-dwell-400.png',fullPage:true});
+ const rect=await page.locator('.timeline').boundingBox();await page.mouse.move(rect.x+rect.width*.8,rect.y+7);await page.mouse.down();await page.mouse.move(rect.x+rect.width*.2,rect.y+7,{steps:5});await page.mouse.up();
+ const backward=await page.evaluate(()=>({time:postureViewer.state.time,duration:postureViewer.stages.A.clip.meta.duration_ms,frame:postureViewer.stages.A.current.values[1]}));if(Math.abs(backward.time/backward.duration-.2)>.01)throw Error('Timeline backward drag failed');
+ await page.mouse.move(rect.x+rect.width*.2,rect.y+7);await page.mouse.down();await page.mouse.move(rect.x+rect.width*.7,rect.y+7,{steps:5});await page.mouse.up();const forward=await page.evaluate(()=>postureViewer.state.time);if(forward<=backward.time)throw Error('Timeline forward drag failed');
+ const worldBefore=await page.evaluate(()=>postureViewer.stages.A.heatMesh.count);await page.locator('#world').click();const world=await page.evaluate(()=>{const a=postureViewer.stages.A,m=a.phoneMatrix(a.current.values);return Math.max(...a.heatRoot.matrix.elements.map((x,i)=>Math.abs(x-m.elements[i])));});if(world>1e-7)throw Error('Heat world transform mismatch');await page.locator('#local').click();
+ const ui=[];
+ for(const task of ['READ','WRITE','TAP','DRAG','SCROLL_V','SCROLL_H']){
+  await page.locator(`[data-task="${task}"]`).click();await page.waitForFunction(t=>postureViewer.stages.A.clip.meta.task===t&&document.querySelector('#status').textContent.startsWith('真实'),task);
+  const x=await page.evaluate(()=>{const a=postureViewer.stages.A,td=postureViewer.state.explorerRecords.P3_N6_seated.tasks[a.clip.meta.task];return {task:a.clip.meta.task,ui_visible:a.uiPlane.visible,texture:a.uiTexture.version,trials:td.ui.trials.length,events:td.ui.events.length,pixels:td.ui.nominal_pixels,heat_visible:a.heatRoot.visible};});if(!x.ui_visible||!x.texture||!x.heat_visible)throw Error('Task UI/heat missing');ui.push(x);
+  if(task==='TAP'||task==='WRITE'||task==='DRAG')await page.screenshot({path:`/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/explorer-ui-${task}.png`,fullPage:true});
+ }
+ await page.locator('#compare').check();await page.waitForFunction(()=>postureViewer.stages.B?.heatRoot.visible);await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/explorer-dual-heat.png',fullPage:true});await page.locator('#compare').uncheck();
+ await page.locator('#heatmap').uncheck();if(await page.evaluate(()=>postureViewer.stages.A.heatRoot.visible||!postureViewer.stages.A.zone.volume.visible))throw Error('Heat/box toggle mismatch');await page.locator('#heatmap').check();await page.locator('#taskUI').uncheck();if(await page.evaluate(()=>postureViewer.stages.A.uiPlane.visible))throw Error('UI hide failed');await page.locator('#taskUI').check();
+ const download=page.waitForEvent('download');await page.locator('#export').click();await(await download).saveAs('/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/explorer-export.png');
+ await page.setViewportSize({width:700,height:1360});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Narrow overflow');await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/explorer-narrow.png',fullPage:true});await page.setViewportSize({width:1440,height:1360});
+ if(errors.length)throw Error(errors.join(';'));return {thresholds,episode,timeline:{backward,forward},world_error:world,ui,png_export:true,responsive:true,page_errors:errors};
+}

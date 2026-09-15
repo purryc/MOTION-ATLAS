@@ -1,0 +1,13 @@
+async (page) => {
+ await page.locator('[data-task=WRITE]').click();await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.task==='WRITE'&&document.querySelector('#status').textContent.startsWith('真实'));
+ await page.locator('#participant').selectOption('10');
+ await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.participant===10&&postureViewer.stages.A.clip.meta.task==='WRITE'&&document.querySelector('#status').textContent.startsWith('真实'));
+ await page.locator('#scrub').fill('166.667');await page.locator('#scrub').dispatchEvent('input');
+ const result=await page.evaluate(()=>{const a=postureViewer.stages.A;return {source_frame:a.current.values[1],measurement_hidden:a.current.height===null,marker_hidden:!a.points[0].visible,line_hidden:!a.heightRoot.visible,label_hidden:a.heightLabel.hidden,calibration_disabled:document.querySelector('#zeroContact').disabled,baseline_retained:document.querySelector('#calibrationInfo').textContent.includes('基线保留')};});
+ if(result.source_frame!==68044||!result.measurement_hidden||!result.line_hidden||!result.label_hidden||!result.calibration_disabled||!result.baseline_retained)throw Error('Missing real-frame check failed '+JSON.stringify(result));
+ await page.screenshot({path:'/Users/hmi/Documents/input agent/Survey/Hover User Study/le2019-posture-v1/qa/output/playwright/height-missing-real-frame.png',fullPage:true});
+ await page.locator('#participant').selectOption('3');await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.participant===3&&document.querySelector('#status').textContent.startsWith('真实'));
+ await page.locator('[data-task=READ]').click();await page.waitForFunction(()=>postureViewer.stages.A.clip.meta.task==='READ'&&document.querySelector('#status').textContent.startsWith('真实'));
+ const width=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth}));
+ return {missing:result,width};
+}
