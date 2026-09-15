@@ -10,10 +10,15 @@ Reanalyse the original right-handed smartphone motion capture by six tasks. Pres
 - outputs/: report, figures and viewer clips.
 - qa/: checks, visual review and limitations.
 - .tmp/: rebuildable temporary files only.
+- data/pose-audit/: versioned backups of derived record arrays/results before validated phone-pose repair, plus audit metadata. Raw ZIP sources remain immutable.
+- outputs/report_before_phone_pose/: preserved report/figures before pose-derived statistics are rebuilt.
 - Version revised plans and deliverables. Never replace raw data.
 
 ## Evidence
 Use actual marker samples, with per-marker validity. Never interpolate across missing samples. Keep world and phone coordinates and source frame IDs. Anatomical joint angles, pad clearance, grip adjustments and Hover intent must not be asserted from marker geometry alone. Keep reading-scroll context. Verify six-task segmentation and S3 synchronization before event inference. Frames are not independent participants.
+
+## Validated phone pose repair
+P7_N6_seated requires phone-marker pose repair: the export pose is inconsistent with the physical marker template during Reading. Build a same-record template from complete phone-marker samples in Writing with export error <0.5mm. Estimate each frame independently from at least three non-collinear observed phone markers using a proper rigid fit; fit RMS must be <=1mm, singular value ratio >=0.02. Reject other frames without interpolation. Validate on a held-out phone marker, record source/template hashes and inverse/distance checks. Preserve recorded hand/world samples and source IDs, with original derived arrays backed up; replace phone-relative arrays, speeds and dependent outputs together. Do not describe marker-based geometric validation as independent physical touch synchronization. Incremental release must include updated affected record clips/dwell/explorer and rebuilt report/statistics as a complete overlay.
 
 ## Height calibration
 Keep recorded marker geometry unchanged. Calibrated thumb reference points are display overlays, clearly labelled, with record-level touch baseline or a user-selected observed contact frame. Per user request, displayed screen distance has a 0mm lower bound; retain signed differences in data for audit, and identify below-baseline values displayed as zero. Do not calibrate missing/unknown-contact frames. Calibration metadata must also work for on-demand clips and exported screenshots.

@@ -82,3 +82,9 @@ npm test --prefix src
 ## v1.1.3：自然停留高度
 
 报告新增自然离屏停留的参与者等权中位高度、中间50%范围、100–600ms阈值敏感性和意图/指腹净距边界。同步现有高度开关与停留滑块。运行 `.venv/bin/python src/report_dwell_height.py`，数据及来源SHA256输出至 outputs/natural-dwell-height.json；保留更新前报告。
+
+## v1.1.4：P7／N6／坐姿手机位姿修正
+
+该记录源手机刚体位姿在阅读段与自身标记点几何不一致。src/phone_pose.py 从同记录输入段建立标记点模板，以每帧至少3个非共线实测点重新估计手机位姿；留出点验证P95约0.36mm，缺失/不可靠帧不插值。原始世界手部、时间与帧号不变，修正前派生数组和报告分别保留在 data/pose-audit、outputs/report_before_phone_pose。重算手机相对坐标、速度、Home Zone位置、停留、高度统计及图表。
+
+复现：analyze.py --record P7_N6_seated --force --workers 1；calibration.py；zones.py、interactive_analysis.py、release_analysis.py、audit.py、ui_position_calibration.py；report.py；report_explorer.py；publish.py --record P7_N6_seated；publish_patch.py。各脚本使用本项目Python虚拟环境，后续步骤依赖前面产物。publish.py的record选项保留其他已验证静态片段，输出增量发布显式清单。

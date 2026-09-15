@@ -263,6 +263,9 @@ def canonical_record(name):
 def process(name,stream):
  record=canonical_record(name);pid,phone,cond=record.split('_');pid=int(pid[1:])
  frame,ts,q,p,world,header=read_motion(stream)
+ from phone_pose import repair
+ q,p,pose_audit=repair(record,q,p,ts)
+ if pose_audit:save_json(B/'outputs/phone-pose-repair.json',pose_audit)
  local,rb,R=transform(q,p,world)
  # Physical guard against swaps/outliers; flag samples, preserve unfiltered world arrays.
  valid=np.isfinite(local).all(2)&rb[:,None]
@@ -302,7 +305,7 @@ def process(name,stream):
    missing_release_trials=sum(not any('UP' in e['action'] for e in events if e['trial']==r['trial']) for r in trials),
    sync_note='Clock mapping/overlap are computational checks; independent physical synchronization is not established.')
  if roundtrip>1e-6 or distance_error>1e-6 or not sync['time_monotonic']:raise ValueError('Transform or timestamp validation failed')
- save_json(B/'data/records'/f'{record}.json',dict(record=record,participant=pid,phone=phone,condition=cond,source=name,header=header,intervals=intervals,trials=trials,events=[{k:(None if isinstance(v,float) and not np.isfinite(v) else v) for k,v in e.items()} for e in events],idle=eps,notes=notes,checks=sync))
+ save_json(B/'data/records'/f'{record}.json',dict(record=record,participant=pid,phone=phone,condition=cond,source=name,phone_pose_repair=pose_audit,header=header,intervals=intervals,trials=trials,events=[{k:(None if isinstance(v,float) and not np.isfinite(v) else v) for k,v in e.items()} for e in events],idle=eps,notes=notes,checks=sync))
  coverage=[];clips=[];sens=[];eventrows=[]
  for ti,task in enumerate(TASKS):
   mask=context==ti; good=mask&valid[:,0]
@@ -324,7 +327,7 @@ def process(name,stream):
   inds=np.flatnonzero((ts>=start)&(ts<=end))
   cid=record+'_'+task
   meta=dict(participant=pid,phone=phone,condition=cond,task=task,device=DEVICES[phone],source=name,
-   representative_epoch_ms=float(ts[representative]),representative_frame=int(frame[representative]),full_hand_representative=bool(complete[representative]),
+   phone_pose_repair=pose_audit,representative_epoch_ms=float(ts[representative]),representative_frame=int(frame[representative]),full_hand_representative=bool(complete[representative]),
    sync_status='CLOCK_MATCHED_PHYSICAL_SYNC_UNVERIFIED',interval=interval,
    home_zone=dict(median=np.nanmedian(local[good,0],axis=0).tolist(),p10=np.nanpercentile(local[good,0],10,axis=0).tolist(),p90=np.nanpercentile(local[good,0],90,axis=0).tolist(),meaning='task activity P10-P90 box, not idle density volume'))
   te=[e for e in eps if e['task']==task]

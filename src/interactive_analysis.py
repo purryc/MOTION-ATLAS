@@ -62,7 +62,7 @@ def main():
    rows.append(dict(record=name,participant=md['participant'],phone=md['phone'],condition=md['condition'],task=task,valid_frames=len(points),raw_median_mm=float(np.median(points[:,2])),corrected_median_mm=float(np.median(corrected[:,2])) if baseline is not None else None))
    key=(md['participant'],task)
    if baseline is not None:hist.setdefault(key,[]).append(np.histogram(corrected[:,2],bins=np.arange(0,106,5))[0]/len(points))
-  save_json(out/(name+'.json'),dict(record=name,source=md['source'],unit='mm',coordinate_system=COORD,baseline_mm=baseline,tasks=tasks))
+  save_json(out/(name+'.json'),dict(record=name,source=md['source'],phone_pose_repair=md.get('phone_pose_repair'),unit='mm',coordinate_system=COORD,baseline_mm=baseline,tasks=tasks))
   records[name]=name+'.json'
   if len(records)%16==0:print('Explorer',len(records),'records',flush=True)
  save_json(out/'index.json',dict(version=1,records=records,thresholds_ms=THRESHOLDS,rule=dict(velocity_mm_s=20,touch_exclusion_ms=300,sample_rate_hz=240),heat_definition='sparse floor XYZ voxel occupancy; 2mm activity/0.5mm dwell; all valid frames conserved; counts/240=sampling-time seconds; raw and max(0,Z-baseline) histograms computed separately'))

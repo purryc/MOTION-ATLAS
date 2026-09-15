@@ -15,7 +15,7 @@ function clipRecord(clip){const m=clip.meta;return `P${m.participant}_${m.phone}
 function calibrationFor(clip){return state.manualBaselines.get(clipRecord(clip))||clip.meta.height_calibration||state.heightBaselines[clipRecord(clip)]||{};}
 const segments={};
 const siteRoot=new URL('../',import.meta.url);
-const request=async url=>{const r=await fetch(url.startsWith('/')?new URL(url.slice(1),siteRoot):url);if(!r.ok)throw Error(await r.text());return r;};
+const request=async url=>{const target=new URL(url.startsWith('/')?url.slice(1):url,siteRoot);target.searchParams.set('v','1.1.4');const r=await fetch(target);if(!r.ok)throw Error(await r.text());return r;};
 async function loadBinary(url,encoding,stride){const r=await request(String(url));const buffer=String(url).endsWith('.gz')?await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer():await r.arrayBuffer();if(encoding==='xor-shuffle-f32-le'){const src=new Uint8Array(buffer),bytes=new Uint8Array(buffer.byteLength),n=src.length/4;for(let j=0;j<4;j++)for(let i=0;i<n;i++)bytes[i*4+j]=src[j*n+i];const bits=new Uint32Array(bytes.buffer);for(let i=stride;i<bits.length;i++)bits[i]^=bits[i-stride];return new Float32Array(bytes.buffer);}return new Float32Array(buffer);}
 function options(el,items,current){el.innerHTML='';for(const [v,t] of items){const o=document.createElement('option');o.value=v;o.textContent=t;el.append(o);}if(items.some(i=>i[0]===current))el.value=current;}
 function recordId(){return `P${$('participant').value}_${$('phone').value}_${$('condition').value}`;}
@@ -127,7 +127,7 @@ class Stage{
   const measurement=heightMeasurement(r,cal.baseline_mm,$('calibrated').checked);this.current.height=measurement;
   const heightText=measurement?(measurement.calibrated?`修正离屏 ${measurement.height_mm.toFixed(1)} mm${measurement.clamped?'（低于基线按 0 显示）':''} · 指甲 Z ${z.toFixed(1)} mm`:`标记点离屏 ${measurement.height_mm.toFixed(1)} mm · 指甲 Z ${z.toFixed(1)} mm`):'拇指标记点缺失';
   $('title'+this.suffix).textContent=labels[meta.task];$('metrics'+this.suffix).textContent=`${heightText} · 速度 ${Number.isFinite(v)?v.toFixed(1):'—'} mm/s · ${contact}`;
-  $('source'+this.suffix).textContent=`P${meta.participant} · ${meta.phone} · ${meta.condition==='seated'?'坐姿':'行走'} · ${meta.source} · 原始帧 ${Math.round(r[1])} · ${missing?`缺失 ${missing}/25 个点`:'25 个点可用'}`;
+  $('source'+this.suffix).textContent=`P${meta.participant} · ${meta.phone} · ${meta.condition==='seated'?'坐姿':'行走'} · ${meta.source} · 原始帧 ${Math.round(r[1])} · ${missing?`缺失 ${missing}/25 个点`:'25 个点可用'}${meta.phone_pose_repair?' · 手机位姿由自身标记点重估':''}`;
   this.controls.update();this.drawHeight(r,measurement,cal);this.renderer.render(this.scene,this.camera);
  }
  drawUI(epoch){
