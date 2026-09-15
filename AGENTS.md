@@ -39,6 +39,7 @@ Overlay controls using logged trial positions, touch coordinates and known devic
 ## Publication
 - src/publish.py builds an explicit allowlist into .tmp/public-site; .tmp/public-repo is the isolated release checkout. Never add parent study documents, raw archives/arrays, caches or qa screenshots to Git.
 - Publish compact explorer JSON, gzip lossless original-frame binary clips, metadata, report figures, Three.js dependencies and code/provenance. Static playback includes all representative clips and every qualifying 100ms maximal dwell episode with bounded pre/post context; local server retains full-task arbitrary segment access.
+- Version changed viewer entry script and styles in HTML URLs so an existing browser session cannot combine new markup with cached old controls.
 - Site paths must work below /MOTION-ATLAS/. Static mode must never call Python API endpoints. Check every task/threshold home-null correspondence, full dwell durations and source frames.
 - deploy/ holds release workflow; public-site.tar.gz is a versioned GitHub release asset. The project workflow downloads, verifies SHA256, and deploys to GitHub Pages. Record public URL and actual deployment/browser results in qa/.
 
