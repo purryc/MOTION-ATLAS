@@ -8,6 +8,8 @@ from report import ci,savefig,FIG
 
 
 def enhance_report(content):
+ from report_dwell_height import enhance_dwell_height
+ content=enhance_dwell_height(content)
  if 'id="reportExplorer"' in content:return add_heat(content)
  panel='''<section id="reportExplorer" class="note"><h2>交互查看</h2><label><input id="reportHeightToggle" type="checkbox"> 显示修正离屏高度（最低 0 mm）</label><p id="heightModeInfo">原始指甲 Z：有符号屏幕坐标。</p><label>最短连续停留 <input id="reportDwellThreshold" aria-label="报告最短停留时长" type="range" min="100" max="600" step="100" value="400"><b id="reportDwellValue">400 ms</b></label><p>速度 &lt;20 mm/s；触摸前后排除 300 ms。下表片段数、累计时长为全部有效记录合计；占比为参与者等权，保留零停留记录。</p><div id="reportDwellSummary" class="scroll">读取真实阈值数据…</div></section>'''
  content=content.replace('<h2>本样本观察',panel+'<h2>本样本观察',1)

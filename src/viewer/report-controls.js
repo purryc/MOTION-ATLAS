@@ -2,7 +2,7 @@ const labels={READ:'阅读',WRITE:'输入',TAP:'点击',DRAG:'拖动',SCROLL_V:'
 const root=document.querySelector('#reportExplorer');
 async function init(){
  const res=await fetch('explorer/report-controls.json');if(!res.ok)throw Error('请先生成交互分析数据');const data=await res.json();
- const toggle=document.querySelector('#reportHeightToggle'),slider=document.querySelector('#reportDwellThreshold'),table=document.querySelector('table.data');
+ const toggle=document.querySelector('#reportHeightToggle'),slider=document.querySelector('#reportDwellThreshold'),table=document.querySelector('table.data:not(.dwell-height-table)');
  const heads=Array.from(table.querySelectorAll('thead th')),heightIndex=heads.findIndex(h=>h.textContent==='Z / mm'),rows=Array.from(table.querySelectorAll('tbody tr')),tasks=Object.keys(labels);
  function height(){
   const corrected=toggle.checked;heads[heightIndex].textContent=corrected?'修正离屏 / mm':'Z / mm';rows.forEach((r,i)=>r.children[heightIndex].textContent=data.height[tasks[i]][corrected?'corrected':'raw'].text);
