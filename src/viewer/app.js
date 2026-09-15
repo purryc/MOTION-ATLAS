@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {OFF,sample,nearestFrame,stepFrame,playbackTime,heightMeasurement,zoneBounds} from './core.js';
-import {episodeAt,clippedEpisodes,uiAt} from './explorer.js';
+import {episodeAt,clippedEpisodes,uiAt,uiCanvasPoint} from './explorer.js';
 const $=id=>document.getElementById(id);
 const colors=[0xe86432,0x287cce,0x25a68f,0x9b74c7,0xc79836];
 const labels={READ:'阅读',WRITE:'输入',TAP:'点击',DRAG:'拖动',SCROLL_V:'竖向滚动',SCROLL_H:'横向滚动'};
-const state={index:null,task:'READ',time:0,speed:1,playing:false,anchorTime:0,anchorWall:0,world:false,view:'oblique',generation:0,cache:new Map(),heightBaselines:{},taskZones:{},explorerRecords:{},dwellThreshold:400,manualBaselines:new Map()};
+const abstracts=['TAP','DRAG','SCROLL_V','SCROLL_H'];
+const requirements={READ:'阅读并滚动英语学习文章 2 分钟，随后回答 3 道理解题。',WRITE:'抄录 MacKenzie 短语，模拟给朋友发消息，不刻意追求极高精度。',ABSTRACT:'完成点击、拖动与横／竖滚动，原文规定各手势随机重复 12 次，用于覆盖常见触摸并诱发握持调整。'};
+const operationRequirements={TAP:'点击随机位置的目标；目标显示 1 秒。',DRAG:'将 tile 拖入目标形状，两者随机置于覆盖全屏的 2×3 网格。',SCROLL_V:'将竖向条滚动到目标形状。',SCROLL_H:'将横向条滚动到目标形状。'};
+function positionFor(clip){return state.positionCalibrations[clipRecord(clip)]||{};}
+
+const state={index:null,task:'READ',time:0,speed:1,playing:false,anchorTime:0,anchorWall:0,world:false,view:'oblique',generation:0,cache:new Map(),heightBaselines:{},taskZones:{},explorerRecords:{},dwellThreshold:400,manualBaselines:new Map(),positionCalibrations:{},participants:null};
 function clipRecord(clip){const m=clip.meta;return `P${m.participant}_${m.phone}_${m.condition}`;}
 function calibrationFor(clip){return state.manualBaselines.get(clipRecord(clip))||clip.meta.height_calibration||state.heightBaselines[clipRecord(clip)]||{};}
 const segments={};
@@ -44,7 +49,7 @@ class Stage{
    helper.volume=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:helper.material.color,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}));helper.parent.add(helper.volume);
   }
   this.uiPreview=document.createElement('div');this.uiPreview.className='ui-preview';this.uiPreview.innerHTML='<small>控件放大 · 日志示意</small><canvas></canvas>';this.uiPreviewCanvas=this.uiPreview.querySelector('canvas');this.host.append(this.uiPreview);
-  this.dwellLabel=document.createElement('div');this.dwellLabel.className='dwell-label';this.host.append(this.dwellLabel);
+  this.dwellLabel=document.createElement('div');this.dwellLabel.className='dwell-label';this.dwellLabel.hidden=true;this.host.append(this.dwellLabel);
   this.zone.visible=this.idlezone.visible=false;
   this.zoneLabel=document.createElement('div');this.zoneLabel.className='zone-label';this.host.append(this.zoneLabel);
   this.heightRoot=new THREE.Group();this.scene.add(this.heightRoot);
@@ -91,16 +96,16 @@ class Stage{
   for(const b of this.bones){const a=this.points[b.a],c=this.points[b.b];b.mesh.visible=a.visible&&c.visible;if(!b.mesh.visible)continue;const delta=c.position.clone().sub(a.position);b.mesh.position.copy(a.position).add(c.position).multiplyScalar(.5);b.mesh.scale.set(this.glyphScale||1,delta.length(),this.glyphScale||1);b.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());}
   this.screen.visible=this.screenOutline.visible=$('screen').checked;
   const cal=calibrationFor(this.clip),zones=state.taskZones[clipRecord(this.clip)]?.[meta.task]||meta;
-  const choice=dwellChoice(this.clip),home=choice?choice.home:zones.idle_sample_home_zone,activity=zones.home_zone;
-  this.box(this.zone,activity,$('zone').checked,world,r,cal);
+  const choice=dwellChoice(this.clip),home=zones.home_zone,activity=zones.home_zone;
+  this.box(this.zone,activity,false,world,r,cal);
   this.box(this.idlezone,home,$('idlezone').checked,world,r,cal);
   const caption=[];
   if(this.zone.visible)caption.push('蓝 · 任务活动区');
-  if(this.idlezone.visible)caption.push(`绿框 · ${labels[meta.task]} Home Zone (${home.episodes} 次 · ${this.idlezone.volume.scale.toArray().map(x=>x.toFixed(2)).join(' × ')} mm)`);
-  if($('idlezone').checked&&!home)caption.push(`${labels[meta.task]}：未检出 ≥${state.dwellThreshold} ms 的 Home Zone`);
+  if(this.idlezone.visible)caption.push(`绿框 · ${labels[meta.task]} Home Zone 位置参考 · XYZ P10–P90：${this.idlezone.volume.scale.toArray().map(x=>x.toFixed(2)).join(' × ')} mm`);
+  if($('idlezone').checked&&!home)caption.push(`${labels[meta.task]}：无有效位置样本`);
   const sm=choice?.summary,epoch=meta.start_epoch_ms+r[0],current=choice?episodeAt(choice.episodes,epoch):null;
-  this.dwellCaption=sm?`${labels[meta.task]} Home Zone · 停留 ${sm.episodes} 次 · 累计合格停留 ${(sm.total_ms/1000).toFixed(3)} s · 中位 ${sm.median_ms===null?'—':sm.median_ms.toFixed(0)+' ms'} · 最短 ${state.dwellThreshold} ms`:'';
-  this.dwellLabel.textContent=this.dwellCaption+(current?` / 当前本次 ${(Math.min(current.duration_ms,epoch-current.start_ms+1000/240)).toFixed(0)} / ${current.duration_ms.toFixed(0)} ms`:' / 当前帧不在合格停留内');
+  this.dwellCaption=sm?`${labels[meta.task]}停留分析 · 停留 ${sm.episodes} 次 · 累计合格停留 ${(sm.total_ms/1000).toFixed(3)} s · 中位 ${sm.median_ms===null?'—':sm.median_ms.toFixed(0)+' ms'} · 最短 ${state.dwellThreshold} ms`:'';
+  const dwellText=this.dwellCaption+(current?` / 当前本次 ${(Math.min(current.duration_ms,epoch-current.start_ms+1000/240)).toFixed(0)} / ${current.duration_ms.toFixed(0)} ms`:' / 当前帧不在合格停留内');if(this.suffix==='A')$('dwellSummary').textContent=dwellText;
   this.zone.volume.visible=false;this.idlezone.volume.visible=false;
   this.drawUI(epoch);
   this.zoneCaption=caption.join(' / ');this.zoneLabel.textContent=this.zoneCaption;this.zoneLabel.hidden=!caption.length;
@@ -127,15 +132,15 @@ class Stage{
  }
  drawUI(epoch){
   this.uiPlane.visible=$('taskUI').checked&&!this.focusedZone;this.uiPreview.hidden=!this.uiPlane.visible;if(!this.uiPlane.visible)return;
-  const ui=taskData(this.clip)?.ui,key=Math.floor(epoch/33);if(this.uiFrame===key)return;this.uiFrame=key;
+  const ui=taskData(this.clip)?.ui,key=Math.floor(epoch/33)+':'+$('positionCalibrated').checked;if(this.uiFrame===key)return;this.uiFrame=key;
   const c=this.uiCanvas,ctx=c.getContext('2d'),w=c.width,h=c.height,current=uiAt(ui,epoch),task=this.clip.meta.task;
   ctx.clearRect(0,0,w,h);ctx.fillStyle='#f9fbfa';ctx.fillRect(0,0,w,h);ctx.fillStyle='#325749';ctx.font='bold 36px sans-serif';ctx.fillText(labels[task]+' · 控件示意',22,40);ctx.font='26px sans-serif';ctx.fillText('日志示意 · 非录屏',22,68);
-  const controls=(current.trial||ui?.trials.find(t=>t.trial===this.clip.meta.interval?.trial))?.controls||(task==='READ'?ui?.trials[0]?.controls:{})||{},pixels=ui?.nominal_pixels||[w,h],point=(x,y)=>[Number(x)/pixels[0]*w,Number(y)/pixels[1]*h];
-  if(task==='WRITE'){ctx.font='30px sans-serif';const phrase=(controls.textToWrite||'输入任务');let line='',lineY=125;for(const word of phrase.split(' ')){if(ctx.measureText(line+' '+word).width>w-44){ctx.fillText(line,22,lineY);lineY+=36;line=word;}else line+=(line?' ':'')+word;}ctx.fillText(line,22,lineY);const events=ui?.events||[];if(events.length){const xs=events.map(e=>e[1]/pixels[0]*w),ys=events.map(e=>e[2]/pixels[1]*h);ctx.strokeStyle='#b4c5bc';ctx.setLineDash([8,5]);ctx.strokeRect(Math.min(...xs),Math.min(...ys),Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));ctx.setLineDash([]);ctx.fillText('键盘触点范围（日志）',22,h-20);}}
+  const controls=(current.trial||ui?.trials.find(t=>t.trial===this.clip.meta.interval?.trial))?.controls||(task==='READ'?ui?.trials[0]?.controls:{})||{},pixels=ui?.nominal_pixels||[w,h],point=(x,y)=>{const pos=positionFor(this.clip);return uiCanvasPoint(Number(x),Number(y),this.clip.meta.device,pixels,[w,h],$('positionCalibrated').checked&&pos.eligible?pos.pixel_to_marker_xy:null);};
+  if(task==='WRITE'){ctx.font='30px sans-serif';const phrase=(controls.textToWrite||'输入任务');let line='',lineY=125;for(const word of phrase.split(' ')){if(ctx.measureText(line+' '+word).width>w-44){ctx.fillText(line,22,lineY);lineY+=36;line=word;}else line+=(line?' ':'')+word;}ctx.fillText(line,22,lineY);const events=ui?.events||[];if(events.length){const xs=events.map(e=>point(e[1],e[2])[0]),ys=events.map(e=>point(e[1],e[2])[1]);ctx.strokeStyle='#b4c5bc';ctx.setLineDash([8,5]);ctx.strokeRect(Math.min(...xs),Math.min(...ys),Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));ctx.setLineDash([]);ctx.fillText('键盘触点范围（日志）',22,h-20);}}
   if(task==='READ'){ctx.strokeStyle='#c6d2cc';ctx.strokeRect(18,100,w-36,h-125);ctx.font='30px sans-serif';ctx.fillText('阅读区域 · textId '+(controls.textId||'—'),28,140);ctx.fillText('正文/滚动位置未保存',28,172);}
   if(['TAP','DRAG','SCROLL_V','SCROLL_H'].includes(task)){
    if(task==='DRAG'){ctx.strokeStyle='#dde5df';for(let x=1;x<2;x++){ctx.beginPath();ctx.moveTo(w*x/2,90);ctx.lineTo(w*x/2,h);ctx.stroke();}for(let y=1;y<3;y++){ctx.beginPath();ctx.moveTo(0,h*y/3);ctx.lineTo(w,h*y/3);ctx.stroke();}}
-   for(const [a,b,color,label]of [['tileX','tileY','#e65b37','tile 锚点'],['targetX','targetY','#287cce','target 锚点']])if(controls[a]!==undefined){const [x,y]=point(controls[a],controls[b]);ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-12,y);ctx.lineTo(x+12,y);ctx.moveTo(x,y-12);ctx.lineTo(x,y+12);ctx.stroke();ctx.fillStyle=color;ctx.font='36px sans-serif';ctx.fillText(label,Math.max(4,Math.min(w-230,x+15)),Math.max(100,y-12));}
+   for(const [a,b,color,label]of [['tileX','tileY','#e65b37','tile 日志位置'],['targetX','targetY','#287cce','target 日志位置']])if(controls[a]!==undefined){const [x,y]=point(controls[a],controls[b]);ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y+14);ctx.lineTo(x,y);ctx.lineTo(x+14,y);ctx.stroke();ctx.fillStyle=color;ctx.font='36px sans-serif';ctx.fillText(label,Math.max(4,Math.min(w-270,x+15)),Math.max(100,y-12));}
   }
   ctx.strokeStyle='#e89432';ctx.lineWidth=3;ctx.beginPath();current.recent.forEach((e,i)=>{const p=point(e[1],e[2]);i&&!e[3].includes('DOWN')&&!current.recent[i-1][3].includes('UP')?ctx.lineTo(...p):ctx.moveTo(...p);});ctx.stroke();if(current.event){ctx.fillStyle='#e65b37';ctx.beginPath();ctx.arc(...point(current.event[1],current.event[2]),9,0,2*Math.PI);if(current.event[3].includes('UP')){ctx.strokeStyle='#e65b37';ctx.stroke();}else ctx.fill();ctx.fillStyle='#e65b37';ctx.font='26px sans-serif';ctx.fillText(current.event[3],22,90);}
   this.uiTexture.needsUpdate=true;this.uiPreviewCanvas.width=w;this.uiPreviewCanvas.height=h;this.uiPreviewCanvas.getContext('2d').drawImage(c,0,0);
@@ -151,7 +156,7 @@ class Stage{
   const projected=new THREE.Vector3(x,y,h/2).applyMatrix4(this.heightRoot.matrix).project(this.camera),w=this.host.clientWidth,hh=this.host.clientHeight;
   this.heightLabel.hidden=projected.z< -1||projected.z>1;
   const d=this.clip.meta.device,[sw,sh]=d.screen,[ox,oy]=d.offset,outside=m.position[0]<ox||m.position[0]>ox+sw||m.position[1]<oy||m.position[1]>oy+sh;
-  this.heightLabel.innerHTML=`<b>${m.calibrated?'修正离屏':'标记点离屏'} ${h.toFixed(1)} mm</b><small>${m.calibrated?`指甲 Z ${m.raw_mm.toFixed(1)} · 基线 ${m.baseline_mm.toFixed(1)} mm`:'真实指甲标记点到屏幕平面'}</small><small>${m.clamped?'低于参考平面，距离按 0 mm 显示':m.calibrated?'空心点为校准参考，不是指腹测量':'未作高度校准'}${outside?' · 屏外投影':''}</small>`;
+  this.heightLabel.innerHTML=`<b>${m.calibrated?'修正离屏':'标记点离屏'} ${h.toFixed(1)} mm</b><small>${m.calibrated?`指甲 Z ${m.raw_mm.toFixed(1)} · 基线 ${m.baseline_mm.toFixed(1)} mm${m.xy_calibrated?' · XY 参考已校准':''}`:'真实指甲标记点到屏幕平面'}</small><small>${m.clamped?'低于参考平面，距离按 0 mm 显示':m.calibrated?'空心点为校准参考，不是指腹测量':'未作高度校准'}${outside?' · 屏外投影':''}</small>`;
   const left=Math.max(8,Math.min(w-this.heightLabel.offsetWidth-8-(!this.uiPreview.hidden?this.uiPreview.offsetWidth+12:0),(projected.x+1)*w/2+16)),top=Math.max(8,Math.min(hh-this.heightLabel.offsetHeight-8,(1-projected.y)*hh/2-50));
   this.heightLabel.style.left=left+'px';this.heightLabel.style.top=top+'px';
  }
@@ -185,13 +190,14 @@ function render(interpolate=true){
  $('scrub').max=duration();$('scrub').value=state.time;$('time').textContent=`${(state.time/1000).toFixed(3)} / ${(duration()/1000).toFixed(3)} s`;
  if(A.current)$('frameinfo').textContent=`原始帧 ${Math.round(A.current.values[1])} · ${A.current.interpolated?'相邻采样点显示插值':'采样帧'}`;
  $('focusZone').disabled=!A.idlezone.visible;$('focusZone').textContent='聚焦 Home Zone';
- const m=A.current?.height,cal=calibrationFor(A.clip);$('zeroContact').disabled=state.playing||!m||A.current.values[OFF.contact]!==1;
+ const m=A.current?.height,cal=calibrationFor(A.clip),pos=positionFor(A.clip);$('positionInfo').textContent=pos.eligible?`UI 位置校准${pos.scope==='phone'?'（机型级估计，本记录精度未核验）':'（同记录）'}：${pos.scope==='phone'?pos.calibration_pairs:pos.valid_pairs} 个有效点击，${pos.scope==='phone'?'跨参与者':'留出'}验证偏差 ${pos.holdout_raw_median_mm.toFixed(1)} → ${pos.holdout_corrected_median_mm.toFixed(1)} mm；不移动真实指甲点。`:'此记录点击样本不足或校准未通过验证，保持原始 UI 映射。';$('zeroContact').disabled=state.playing||!m||A.current.values[OFF.contact]!==1;
  $('calibrationInfo').textContent=Number.isFinite(cal.baseline_mm)?`${cal.method==='manual_contact_frame'?'当前帧':'自动触摸中位数'}基线 ${cal.baseline_mm.toFixed(2)} mm${cal.source_frame!==undefined?` · 源帧 ${cal.source_frame}`:''}；${m?'原始标记点未移动。':'拇指点缺失，暂不显示高度，基线保留。'}`:'没有可用触摸基线；显示原始指甲高度。';
 }
 async function chooseTask(task){
  const gen=++state.generation;pause();state.task=task;$('status').textContent='正在加载真实轨迹…';
  const clips=available(),c=clips.find(c=>c.task===task);if(!c)throw Error('该条件没有有效数据');await ensureExplorer(clipRecord({meta:c}));const clip=await loadClip(c);if(gen!==state.generation)return;
- for(const b of $('tasks').children)b.classList.toggle('active',b.dataset.task===task);
+ for(const b of $('tasks').querySelectorAll('[data-group]'))b.classList.toggle('active',b.dataset.group===(abstracts.includes(task)?'ABSTRACT':task));
+ $('abstractOperations').hidden=!abstracts.includes(task);for(const b of $('abstractOperations').children)b.classList.toggle('active',b.dataset.task===task);$('operationRequirement').hidden=!abstracts.includes(task);$('operationRequirement').textContent=operationRequirements[task]||'';
  A.setClip(clip);state.time=Math.max(0,clip.meta.representative_epoch_ms-clip.meta.start_epoch_ms);anchor();
  await loadB(gen);if(gen!==state.generation)return;
  await populateSegments();if(gen!==state.generation)return;populateDwell();drawTimeline();render(false);$('status').textContent='真实标记点回放。鼠标拖动旋转，滚轮缩放；未知触摸状态不计入稳定停留。';
@@ -224,14 +230,19 @@ function thumbnail(canvas,clip){
 }
 async function changeDataset(){
  pause();state.cache.clear();const clips=available();if(!clips.length){$('status').textContent='这个组合没有有效记录，请选择其他手机或情境。';return;}
- const tasks=state.index.tasks;options($('taskB'),tasks.filter(t=>clips.some(c=>c.task===t.id)).map(t=>[t.id,t.name]),$('taskB').value||'TAP');$('tasks').innerHTML='';
- for(const [i,t]of tasks.entries()){
-  const b=document.createElement('button');b.className='task';b.dataset.task=t.id;b.disabled=!clips.some(c=>c.task===t.id);b.innerHTML=`<span class="num">0${i+1}</span><b>${t.name}</b><small>${t.id}</small><canvas aria-label="真实典型姿态"></canvas>`;b.onclick=()=>chooseTask(t.id).catch(error);$('tasks').append(b);
+ const tasks=state.index.tasks;options($('taskB'),tasks.filter(t=>clips.some(c=>c.task===t.id)).map(t=>[t.id,t.name]),$('taskB').value||'TAP');$('tasks').innerHTML='';$('abstractOperations').innerHTML='';
+ for(const [i,g] of ['READ','WRITE','ABSTRACT'].entries()){
+  const op=g==='ABSTRACT'?'DRAG':g,card=document.createElement('article');card.className='task-group';
+  const b=document.createElement('button');b.className='task';b.dataset.group=g;b.disabled=!(g==='ABSTRACT'?clips.some(c=>abstracts.includes(c.task)):clips.some(c=>c.task===g));
+  b.innerHTML=`<span class="num">0${i+1}</span><b>${g==='ABSTRACT'?'抽象输入':labels[g]}</b><small>${g==='ABSTRACT'?'Abstract input':g==='READ'?'Reading':'Writing'}</small><canvas data-preview="${op}" aria-label="真实典型姿态"></canvas>`;
+  b.onclick=()=>chooseTask(g==='ABSTRACT'?(abstracts.includes(state.task)?state.task:clips.find(c=>abstracts.includes(c.task)).task):g).catch(error);card.append(b);const p=document.createElement('p');p.className='task-requirement';p.textContent=requirements[g];card.append(p);$('tasks').append(card);
  }
+ for(const t of tasks.filter(t=>abstracts.includes(t.id))){const b=document.createElement('button');b.dataset.task=t.id;b.textContent=t.name;b.disabled=!clips.some(c=>c.task===t.id);b.onclick=()=>chooseTask(t.id).catch(error);$('abstractOperations').append(b);}
+ const device=state.index.devices[$('phone').value];$('deviceInfo').textContent=`机身（宽×高×厚）${device.size.join(' × ')} mm；屏幕（宽×高）${device.screen.join(' × ')} mm。尺寸取自官方处理代码。`;
  const task=clips.some(c=>c.task===state.task)?state.task:clips[0].task;await chooseTask(task);
- const rec=recordId();await Promise.all(clips.map(async c=>{const clip=await loadClip(c);if(rec!==recordId())return;const canvas=$('tasks').querySelector(`[data-task="${c.task}"] canvas`);if(canvas)thumbnail(canvas,clip);}));
+ const rec=recordId();await Promise.all(clips.filter(c=>['READ','WRITE','DRAG'].includes(c.task)).map(async c=>{const clip=await loadClip(c);if(rec!==recordId())return;const canvas=$('tasks').querySelector(`[data-preview="${c.task}"]`);if(canvas)thumbnail(canvas,clip);}));
 }
-function populateDwell(){for(const b of $('tasks').children){const td=state.explorerRecords[recordId()]?.tasks[b.dataset.task],s=td?.thresholds[String(state.dwellThreshold)].summary;b.querySelector('small').textContent=s?`${s.episodes} 次 · ${(s.total_ms/1000).toFixed(3)} s（≥${state.dwellThreshold} ms）`:'无有效记录';}const eps=dwellChoice(A.clip)?.episodes||[];options($('dwellSelect'),[['none','选择停留，查看真实动作'],...eps.map((e,i)=>[String(i),`第 ${i+1} 次 · ${e.duration_ms.toFixed(0)} ms · 原始帧 ${e.start_frame}`])],'none');$('dwellSelect').disabled=!eps.length;}
+function populateDwell(){const eps=dwellChoice(A.clip)?.episodes||[];options($('dwellSelect'),[['none','选择停留，查看真实动作'],...eps.map((e,i)=>[String(i),`第 ${i+1} 次 · ${e.duration_ms.toFixed(0)} ms · 原始帧 ${e.start_frame}`])],'none');$('dwellSelect').disabled=!eps.length;}
 async function showDwell(){
  if($('dwellSelect').value==='none')return;pause();const e=dwellChoice(A.clip).episodes[Number($('dwellSelect').value)];
  if(state.index.publication){const gen=state.generation,task=state.task;const clip=await loadClip({id:e.public_clip,meta:'dwell/'+e.public_clip+'.json'});if(gen!==state.generation||task!==state.task)return;A.setClip(clip);state.time=e.start_ms-clip.meta.start_epoch_ms;anchor();drawTimeline();render(false);return;}
@@ -241,14 +252,16 @@ async function showDwell(){
 }
 async function init(){
  state.index=await (await request('/outputs/index.json')).json();
+ state.positionCalibrations=(await (await request('/outputs/ui-position-calibration.json')).json()).records;
+ state.participants=await (await request('/outputs/participants.json')).json();
  state.taskZones=(await (await request('/outputs/zones.json')).json()).records;
  state.heightBaselines=(await (await request('/outputs/calibration.json')).json()).records;
  const params=new URLSearchParams(location.search),requestedTask=params.get('task'),requestedThreshold=Number(params.get('threshold'));if(labels[requestedTask])state.task=requestedTask;if([100,200,300,400,500,600].includes(requestedThreshold)){state.dwellThreshold=requestedThreshold;$('dwellThreshold').value=requestedThreshold;$('dwellThresholdValue').textContent=requestedThreshold+' ms';}
  const requestedView=params.get('view');if(['front','back','side','oblique'].includes(requestedView))state.view=requestedView;
  for(const button of document.querySelectorAll('[data-view]'))button.classList.toggle('active',button.dataset.view===state.view);
- A=new Stage('A');const ps=[...new Set(state.index.clips.map(c=>c.participant))].sort((a,b)=>a-b);options($('participant'),ps.map(p=>[String(p),'P'+p]),'3');
- options($('phone'),Object.entries(state.index.devices).map(([k,v])=>[k,k+' · '+v.model]),'N6');options($('condition'),[['seated','坐姿'],['walking','行走 · 3 km/h']],'seated');
- $('dataset').textContent=`${ps.length} 位参与者 · ${new Set(state.index.clips.map(c=>`P${c.participant}_${c.phone}_${c.condition}`)).size} 条记录 · 六任务`;
+ A=new Stage('A');const ps=[...new Set(state.index.clips.map(c=>c.participant))].sort((a,b)=>a-b);options($('participant'),state.participants.participants.map(p=>[String(p.id),`P${p.id}${p.motion?'':' · 仅日志，无3D'}`]),'3');for(const o of $('participant').options)o.disabled=!ps.includes(Number(o.value));$('participantInfo').textContent=`公开动捕 ${ps.length} 人；P${state.participants.log_only.join('、P')} 仅有手机日志，不能回放三维。缺失原因未在公开资料中说明。`;
+ options($('phone'),Object.entries(state.index.devices).map(([k,v])=>[k,`${k} · ${{S3:'4.0',S4:'5.0',OPO:'5.5',N6:'6.0'}[k]}″ · ${v.size.join('×')} mm · ${v.model}`]),'N6');options($('condition'),[['seated','坐姿'],['walking','行走 · 3 km/h']],'seated');
+ $('dataset').textContent=`${ps.length} 位参与者 · ${new Set(state.index.clips.map(c=>`P${c.participant}_${c.phone}_${c.condition}`)).size} 条记录 · 三大任务 / 六类操作`;
  for(const id of ['participant','phone','condition'])$(id).onchange=()=>changeDataset().catch(error);
  $('play').onclick=()=>{if(!A.clip)return;if(state.playing)pause();else{if(state.time>=duration())state.time=0;state.playing=true;anchor();$('play').textContent='暂停';}};
  for(const [id,d]of [['prev',-1],['next',1]])$(id).onclick=()=>{pause();state.time=stepFrame(A.clip.data,A.clip.meta.stride,state.time,d);render(false);};
@@ -256,7 +269,7 @@ async function init(){
  $('scrub').oninput=()=>{pause();state.time=Number($('scrub').value);render(false);};$('rate').onchange=()=>{state.speed=Number($('rate').value);anchor();};
  for(const id of ['local','world'])$(id).onclick=()=>{state.world=id==='world';$('local').classList.toggle('active',!state.world);$('world').classList.toggle('active',state.world);render(false);};
  for(const btn of document.querySelectorAll('[data-view]'))btn.onclick=()=>{state.view=btn.dataset.view;A.view(state.view);B?.view(state.view);for(const b of document.querySelectorAll('[data-view]'))b.classList.toggle('active',b===btn);render(false);};
- for(const id of ['trajectory','zone','idlezone','screen','calibrated','heightline','taskUI'])$(id).onchange=()=>render(false);
+ for(const id of ['trajectory','idlezone','screen','calibrated','heightline','taskUI','positionCalibrated'])$(id).onchange=()=>render(false);
  $('focusZone').onclick=()=>{pause();const helper=A.idlezone;if(!helper.visible)return;const centre=helper.box.getCenter(new THREE.Vector3()).applyMatrix4(helper.parent.matrix),size=helper.box.getSize(new THREE.Vector3()).length(),direction=A.camera.position.clone().sub(A.controls.target).normalize();A.focusedZone=true;A.glyphScale=Math.min(1,Math.max(size/80,.008));A.controls.target.copy(centre);A.camera.position.copy(centre).addScaledVector(direction,Math.max(size*2.5,2));A.controls.update();render(false);};
  $('dwellThreshold').oninput=()=>{pause();state.dwellThreshold=Number($('dwellThreshold').value);$('dwellThresholdValue').textContent=state.dwellThreshold+' ms';populateDwell();drawTimeline();render(false);};
  $('dwellSelect').onchange=()=>showDwell().catch(error);
@@ -270,7 +283,7 @@ async function init(){
    const m=s.current.height,cal=calibrationFor(s.clip);if(m){const txt=`${m.calibrated?'修正离屏':'标记点离屏'} ${m.height_mm.toFixed(1)} mm · 指甲 Z ${m.raw_mm.toFixed(2)} mm · ${Number.isFinite(m.baseline_mm)?`基线 ${m.baseline_mm.toFixed(2)} mm`:'无触摸基线'}`;ctx.fillText(txt,x+12,height+66);ctx.fillText(`校准参考点为显示示意，非指腹净距测量${cal.source_frame!==undefined?` · 校准源帧 ${cal.source_frame}`:''}`,x+12,height+85);
     if(!s.heightLabel.hidden){const scale=s.renderer.domElement.width/s.host.clientWidth,l=x+parseFloat(s.heightLabel.style.left)*scale,t=parseFloat(s.heightLabel.style.top)*scale;ctx.fillStyle='#ffffff';ctx.fillRect(l,t,Math.min(220*scale,s.renderer.domElement.width-(l-x)-8),54*scale);ctx.fillStyle='#a3411b';ctx.font=`${13*scale}px sans-serif`;ctx.fillText(`${m.calibrated?'修正离屏':'标记点离屏'} ${m.height_mm.toFixed(1)} mm`,l+8*scale,t+20*scale);ctx.font=`${10*scale}px sans-serif`;ctx.fillText(m.calibrated?'触摸基线修正参考 · 非指腹测量':'真实指甲标记点到屏幕平面',l+8*scale,t+39*scale);}
    }if(!s.uiPreview.hidden){const scale=s.renderer.domElement.width/s.host.clientWidth,box=s.uiPreview.getBoundingClientRect(),host=s.host.getBoundingClientRect(),px=x+(box.left-host.left)*scale,py=(box.top-host.top)*scale;ctx.fillStyle='#fff';ctx.fillRect(px,py,box.width*scale,box.height*scale);ctx.fillStyle='#356e4a';ctx.font=`${10*scale}px sans-serif`;ctx.fillText('控件放大 · 日志示意',px+8*scale,py+15*scale);ctx.drawImage(s.uiPreviewCanvas,px+8*scale,py+24*scale,(box.width-16)*scale,(box.height-32)*scale);}
-   ctx.fillStyle='#245d48';ctx.font='12px sans-serif';ctx.fillText(s.zoneCaption||'三维区域已隐藏',x+12,height+108);ctx.fillText(s.dwellCaption||'',x+12,height+130);x+=s.renderer.domElement.width;}
+   ctx.fillStyle='#245d48';ctx.font='12px sans-serif';ctx.fillText(s.zoneCaption||'三维区域已隐藏',x+12,height+108);ctx.fillText('位置框独立于停留阈值 · 全任务有效拇指 XYZ P10–P90',x+12,height+130);x+=s.renderer.domElement.width;}
   const a=document.createElement('a');a.download=`le2019_${recordId()}_${state.task}_${Math.round(A.current.values[1])}.png`;a.href=canvas.toDataURL('image/png');a.click();
  };
  await changeDataset();

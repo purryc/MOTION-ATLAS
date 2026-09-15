@@ -9,3 +9,8 @@ export function uiAt(ui,epoch){
  return {trial,event:trial&&event?.[4]===trial.trial&&epoch-event[0]<1000?event:null,recent:trial?events.slice(Math.max(0,lo-50),lo).filter(e=>e[4]===trial.trial&&epoch-e[0]<1000):[]};
 }
 export function pixelToPhone(x,y,device,pixels){const [sw,sh]=device.screen,[ox,oy]=device.offset;return [ox+sw*(1-x/pixels[0]),oy+sh*y/pixels[1],0];}
+export function uiCanvasPoint(x,y,device,pixels,canvas,fit){
+ const [w,h]=canvas;if(!fit)return [x/pixels[0]*w,y/pixels[1]*h];
+ const [a,b,d,e]=fit,[sw,sh]=device.screen,[ox,oy]=device.offset;
+ return [(ox+sw-(a*x+b))/sw*w,(d*y+e-oy)/sh*h];
+}

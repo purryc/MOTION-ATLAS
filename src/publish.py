@@ -27,7 +27,7 @@ def main():
  shutil.copytree(B/'src/node_modules/three/examples/jsm/controls',SITE/'vendor/examples/jsm/controls',dirs_exist_ok=True)
  shutil.copytree(B/'src/node_modules/three/examples/jsm/math',SITE/'vendor/examples/jsm/math',dirs_exist_ok=True)
  shutil.copytree(B/'outputs/figures',out/'figures',dirs_exist_ok=True)
- for name in ['report.html','findings.md','zones.json','calibration.json']:shutil.copy(B/'outputs'/name,out/name)
+ for name in ['report.html','findings.md','zones.json','calibration.json','ui-position-calibration.json','participants.json']:shutil.copy(B/'outputs'/name,out/name)
  index=json.loads((B/'outputs/index.json').read_text());index['publication']={'name':'MOTION ATLAS','mode':'static','dwell_context_ms':300,'all_dwell_available':True,'arbitrary_full_task_segments':'local Python server only','sample_rate_hz':240,'lossless_gzip':True}
  for c in index['clips']:
   p=B/'outputs'/c['meta'];md=json.loads(p.read_text());raw=p.parent/md['binary'];dest=out/c['meta'];dest.parent.mkdir(parents=True,exist_ok=True)

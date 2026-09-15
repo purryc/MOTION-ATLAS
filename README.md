@@ -68,3 +68,9 @@ npm test --prefix src
 公开项目：MOTION ATLAS，仓库 `purryc/MOTION-ATLAS`。运行 `.venv/bin/python src/publish.py` 生成 `.tmp/public-site/`，包含 761 个典型片段及所有 5,365 个 ≥100ms 完整停留片段（各阈值复用，不截短），保留 240Hz 原始帧、世界／手机坐标和有效性。gzip 为无损压缩。网页选择下方某次停留即可加载；任意全任务分段仍由本地服务器提供。报告使用同一套处理后数据。
 
 `deploy/deploy-pages.yml` 为项目发布命令的工作流：下载指定版本的 `public-site.tar.gz` Release 资产、核对 SHA256，再部署 GitHub Pages；发布流程不提交私有研究文档、完整原始数据或缓存。构建检查见 `qa/motion-atlas-build.json`。
+
+## v1.1：原任务与位置显示
+
+入口按原论文分为 Reading、Writing、Abstract input，并保留原始要求。抽象输入再展开四操作。Home Zone 绿色框是全操作有效拇指XYZ P10–P90位置参考，独立于停留规则；停留在独立折叠面板和报告中分析。UI位置校准采用同记录有效TAP DOWN的Theil-Sen像素到指甲参考XY拟合，留出验证未通过的记录保持原始映射；原始标记点/触点/锚点均保留。此估计不代表指腹位置或验证过的真实屏幕配准。重建 `.venv/bin/python src/ui_position_calibration.py`；小版本 `.venv/bin/python src/publish_patch.py`，workflow同时验证基础和补丁Release SHA256。
+
+公开动捕编号为P3、4、5、6、7、8、10、11、12、13、14、16、17、19、20、21。P1、P2、P9、P15、P18仅有手机日志，官方动捕包没有对应记录；缺失原因未公开说明，不当作已证实的试验排除或预试编号。机型列表显示4/5/5.5/6英寸和官方机身宽高厚、屏幕宽高毫米尺寸。

@@ -10,6 +10,14 @@ on:
         description: SHA256 of public-site.tar.gz
         required: true
         type: string
+      patch_tag:
+        description: Optional incremental site release tag
+        required: false
+        type: string
+      patch_sha256:
+        description: SHA256 of public-patch.tar.gz
+        required: false
+        type: string
 permissions:
   contents: read
   pages: write
@@ -35,6 +43,16 @@ jobs:
           echo "$SITE_SHA256  public-site.tar.gz" | sha256sum -c -
           mkdir public
           tar -xzf public-site.tar.gz -C public
+      - name: Apply verified incremental release
+        if: ${{ inputs.patch_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_TAG: ${{ inputs.patch_tag }}
+          PATCH_SHA256: ${{ inputs.patch_sha256 }}
+        run: |
+          gh release download "$PATCH_TAG" --repo "$GITHUB_REPOSITORY" --pattern public-patch.tar.gz
+          echo "$PATCH_SHA256  public-patch.tar.gz" | sha256sum -c -
+          tar -xzf public-patch.tar.gz -C public
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
