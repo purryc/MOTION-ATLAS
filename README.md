@@ -46,9 +46,9 @@ npm test --prefix src
 
 ## 每任务三维区域
 
-默认只显示绿色 Home Zone 框，为当前任务达到所选最短停留阈值的真实拇指样本 XYZ 各轴 P10–P90。没有合格停留时不显示框，明确标注“未检出 Home Zone”。蓝框活动范围可按需打开。框不填充、不叠加热度；小区域通过“聚焦 Home Zone”观察，没有 Home Zone 时聚焦按钮不可用。
+默认只显示绿色 Home Zone 框，为当前任务全部有效拇指样本 XYZ 各轴 P10–P90 位置参考，独立于停留阈值。没有有效拇指样本时不显示框。蓝框活动范围可按需打开。框不填充、不叠加热度；小区域可通过“聚焦 Home Zone”观察。
 
-回放顶部及六任务卡片显示对应条件、任务、阈值下的合格停留次数和累计时长；顶部另显示单次中位时长以及当前本次的已持续／完整时长。次数与累计时间覆盖全任务的完整合格片段，P10–P90 框是这些帧的分位范围，不表示所有帧都在框内。
+回放顶部及六任务卡片显示对应条件、任务、阈值下的合格停留次数和累计时长；顶部另显示单次中位时长以及当前本次的已持续／完整时长。次数与累计时间覆盖全任务的完整合格片段；P10–P90 位置参考框覆盖全任务有效拇指样本，不表示停留区域。
 
 ## 研究边界
 
@@ -56,8 +56,8 @@ npm test --prefix src
 
 ## 停留、热度与任务控件交互（本次更新）
 
-- 回放顶部显示整个任务的停留次数、累计时长、单次中位时长与当前停留已持续时间。下方最短停留滑块为 100/200/300/400/500/600ms；保持速度 <20mm/s、触摸前后排除 >300ms，筛选完整连续片段，不把较长片段截短。选择某次停留立即加载其前后真实片段，最长 10 秒；时间轴和绿色停留段可拖动前后回看。
-- **3D 空间热度图仅在分析报告中显示**：独立选择六任务、参与者、机型、情境及活动／停留样本。报告高度开关和 100–600ms 滑块同步影响热度数据。蓝→红为每幅图独立 log1p 色标，显示每格最大秒数，跨图比较看数字。活动格 2mm，停留格 0.5mm；时间为有效采样计数/240。修正数据先逐帧 max(0,Z−baseline)，再分桶；缺失不补造，没有停留时保持空图。
+- 回放顶部显示整个任务的停留次数、累计时长、单次中位时长与当前停留已持续时间。下方最短停留滑块为 100–1000ms，步长 100ms；保持速度 <20mm/s、触摸前后排除 >300ms，筛选完整连续片段，不把较长片段截短。选择某次停留立即加载其前后真实片段，最长 10 秒；时间轴和绿色停留段可拖动前后回看。
+- **3D 空间热度图仅在分析报告中显示**：独立选择六任务、参与者、机型、情境及活动／停留样本。报告高度开关和 100–1000ms 滑块同步影响热度数据。蓝→红为每幅图独立 log1p 色标，显示每格最大秒数，跨图比较看数字。活动格 2mm，停留格 0.5mm；时间为有效采样计数/240。修正数据先逐帧 max(0,Z−baseline)，再分桶；缺失不补造，没有停留时保持空图。
 - 勾选任务控件示意，在屏幕上与放大预览显示日志的 tile/target 锚点、触摸轨迹及当前事件；输入显示记录短语和键盘触点范围，阅读显示 textId。它是控件位置示意，不是原始录屏；机型标称像素到整屏为估计映射，未确认状态栏/应用偏移、控件大小、键盘排布与正文/滚动偏移。原论文 Figure4 为参考：https://www.medien.ifi.lmu.de/pubdb/publications/pub/le2019investigatingunintended/le2019investigatingunintended.pdf#page=5
 - 报告顶部开关切换拇指绝对高度主表、六任务比较、机型情境、高度分布三张图。修正量逐帧取非负下限，再记录内取中位数、参与者内平均并参与者等权 bootstrap。正文检验、相对事件高度和其他手指保留原始研究结果，科研差值表仍允许负数。报告也支持相同停留阈值滑块和六任务时长表。
 
@@ -65,7 +65,7 @@ npm test --prefix src
 
 ## GitHub Pages 发布
 
-公开项目：MOTION ATLAS，仓库 `purryc/MOTION-ATLAS`。运行 `.venv/bin/python src/publish.py` 生成 `.tmp/public-site/`，包含 761 个典型片段及所有 5,365 个 ≥100ms 完整停留片段（各阈值复用，不截短），保留 240Hz 原始帧、世界／手机坐标和有效性。gzip 为无损压缩。网页选择下方某次停留即可加载；任意全任务分段仍由本地服务器提供。报告使用同一套处理后数据。
+公开项目：MOTION ATLAS，仓库 `purryc/MOTION-ATLAS`。运行 `.venv/bin/python src/publish.py` 生成 `.tmp/public-site/`，包含 761 个典型片段及所有 5,362 个 ≥100ms 完整停留片段（各阈值复用，不截短），保留 240Hz 原始帧、世界／手机坐标和有效性。gzip 为无损压缩。网页选择下方某次停留即可加载；任意全任务分段仍由本地服务器提供。报告使用同一套处理后数据。
 
 `deploy/deploy-pages.yml` 为项目发布命令的工作流：下载指定版本的 `public-site.tar.gz` Release 资产、核对 SHA256，再部署 GitHub Pages；发布流程不提交私有研究文档、完整原始数据或缓存。构建检查见 `qa/motion-atlas-build.json`。
 
@@ -81,10 +81,14 @@ npm test --prefix src
 
 ## v1.1.3：自然停留高度
 
-报告新增自然离屏停留的参与者等权中位高度、中间50%范围、100–600ms阈值敏感性和意图/指腹净距边界。同步现有高度开关与停留滑块。运行 `.venv/bin/python src/report_dwell_height.py`，数据及来源SHA256输出至 outputs/natural-dwell-height.json；保留更新前报告。
+报告新增自然离屏停留的参与者等权中位高度、中间50%范围、阈值敏感性和意图/指腹净距边界。同步现有高度开关与停留滑块。运行 `.venv/bin/python src/report_dwell_height.py`，数据及来源SHA256输出至 outputs/natural-dwell-height.json；保留更新前报告。
 
 ## v1.1.4：P7／N6／坐姿手机位姿修正
 
 该记录源手机刚体位姿在阅读段与自身标记点几何不一致。src/phone_pose.py 从同记录输入段建立标记点模板，以每帧至少3个非共线实测点重新估计手机位姿；留出点验证P95约0.36mm，缺失/不可靠帧不插值。原始世界手部、时间与帧号不变，修正前派生数组和报告分别保留在 data/pose-audit、outputs/report_before_phone_pose。重算手机相对坐标、速度、Home Zone位置、停留、高度统计及图表。
 
 复现：analyze.py --record P7_N6_seated --force --workers 1；calibration.py；zones.py、interactive_analysis.py、release_analysis.py、audit.py、ui_position_calibration.py；report.py；report_explorer.py；publish.py --record P7_N6_seated；publish_patch.py。各脚本使用本项目Python虚拟环境，后续步骤依赖前面产物。publish.py的record选项保留其他已验证静态片段，输出增量发布显式清单。
+
+## v1.1.5：停留阈值扩至 1000ms
+
+报告与回放的最短连续停留滑块均为 100–1000ms、步长100ms，默认仍为400ms。每一档都从同一批未截短的最大连续片段筛选，统计表、自然停留高度、报告3D停留热图和回放片段同步更新；Home Zone 位置框不随阈值变化。运行 `.venv/bin/python src/interactive_analysis.py`、`.venv/bin/python src/report_explorer.py`、`.venv/bin/python src/publish.py --thresholds-only` 可重建派生数据与静态站；最后一步复用经核对的原始帧回放文件，更新全部128条记录的阈值索引及处理表格。

@@ -6,7 +6,7 @@ import pandas as pd
 from analyze import B,TASKS,COORD,episodes,save_json,numbers
 from zones import quantiles
 
-THRESHOLDS=[100,200,300,400,500,600]
+THRESHOLDS=list(range(100,1001,100))
 # Nominal physical display resolutions; application/status-bar insets not captured.
 PIXELS={'S3':[480,800],'S4':[1080,1920],'OPO':[1080,1920],'N6':[1440,2560]}
 

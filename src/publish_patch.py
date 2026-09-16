@@ -17,7 +17,7 @@ def main():
   target=ROOT/dest;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy(B/src,target)
   live=B/'.tmp/public-site'/dest;live.parent.mkdir(parents=True,exist_ok=True);
   if (B/src).resolve()!=live.resolve():shutil.copy(B/src,live)
- manifest=dict(name='MOTION ATLAS',version='1.1.4',operation_selection='always-visible buttons inside Abstract input card; direct playback selection',base_release='v1.0.0',task_hierarchy='Reading, Writing, Abstract input (Tap, Drag, vertical/horizontal scroll)',home_zone='full-task valid thumb XYZ P10-P90 position reference; independent of dwell slider',ui_calibration='robust TAP DOWN pixel-to-recorded-marker XY, source timestamps and heldout errors',files={dest:hashlib.sha256((ROOT/dest).read_bytes()).hexdigest() for _,dest in files})
+ manifest=dict(name='MOTION ATLAS',version='1.1.5',operation_selection='always-visible buttons inside Abstract input card; direct playback selection',base_release='v1.0.0',task_hierarchy='Reading, Writing, Abstract input (Tap, Drag, vertical/horizontal scroll)',home_zone='full-task valid thumb XYZ P10-P90 position reference; independent of dwell slider',ui_calibration='robust TAP DOWN pixel-to-recorded-marker XY, source timestamps and heldout errors',files={dest:hashlib.sha256((ROOT/dest).read_bytes()).hexdigest() for _,dest in files})
  (ROOT/'outputs/revision.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2));shutil.copy(ROOT/'outputs/revision.json',B/'.tmp/public-site/outputs/revision.json')
  archive=B/'.tmp/public-patch.tar.gz'
  with tarfile.open(archive,'w:gz') as tar:

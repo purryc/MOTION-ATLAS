@@ -15,7 +15,7 @@ function clipRecord(clip){const m=clip.meta;return `P${m.participant}_${m.phone}
 function calibrationFor(clip){return state.manualBaselines.get(clipRecord(clip))||clip.meta.height_calibration||state.heightBaselines[clipRecord(clip)]||{};}
 const segments={};
 const siteRoot=new URL('../',import.meta.url);
-const request=async url=>{const target=new URL(url.startsWith('/')?url.slice(1):url,siteRoot);target.searchParams.set('v','1.1.4');const r=await fetch(target);if(!r.ok)throw Error(await r.text());return r;};
+const request=async url=>{const target=new URL(url.startsWith('/')?url.slice(1):url,siteRoot);target.searchParams.set('v','1.1.5');const r=await fetch(target);if(!r.ok)throw Error(await r.text());return r;};
 async function loadBinary(url,encoding,stride){const r=await request(String(url));const buffer=String(url).endsWith('.gz')?await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer():await r.arrayBuffer();if(encoding==='xor-shuffle-f32-le'){const src=new Uint8Array(buffer),bytes=new Uint8Array(buffer.byteLength),n=src.length/4;for(let j=0;j<4;j++)for(let i=0;i<n;i++)bytes[i*4+j]=src[j*n+i];const bits=new Uint32Array(bytes.buffer);for(let i=stride;i<bits.length;i++)bits[i]^=bits[i-stride];return new Float32Array(bytes.buffer);}return new Float32Array(buffer);}
 function options(el,items,current){el.innerHTML='';for(const [v,t] of items){const o=document.createElement('option');o.value=v;o.textContent=t;el.append(o);}if(items.some(i=>i[0]===current))el.value=current;}
 function recordId(){return `P${$('participant').value}_${$('phone').value}_${$('condition').value}`;}
@@ -261,7 +261,7 @@ async function init(){
  state.participants=await (await request('/outputs/participants.json')).json();
  state.taskZones=(await (await request('/outputs/zones.json')).json()).records;
  state.heightBaselines=(await (await request('/outputs/calibration.json')).json()).records;
- const params=new URLSearchParams(location.search),requestedTask=params.get('task'),requestedThreshold=Number(params.get('threshold'));if(labels[requestedTask])state.task=requestedTask;if([100,200,300,400,500,600].includes(requestedThreshold)){state.dwellThreshold=requestedThreshold;$('dwellThreshold').value=requestedThreshold;$('dwellThresholdValue').textContent=requestedThreshold+' ms';}
+ const params=new URLSearchParams(location.search),requestedTask=params.get('task'),requestedThreshold=Number(params.get('threshold'));if(labels[requestedTask])state.task=requestedTask;if(requestedThreshold>=100&&requestedThreshold<=1000&&requestedThreshold%100===0){state.dwellThreshold=requestedThreshold;$('dwellThreshold').value=requestedThreshold;$('dwellThresholdValue').textContent=requestedThreshold+' ms';}
  const requestedView=params.get('view');if(['front','back','side','oblique'].includes(requestedView))state.view=requestedView;
  for(const button of document.querySelectorAll('[data-view]'))button.classList.toggle('active',button.dataset.view===state.view);
  A=new Stage('A');const ps=[...new Set(state.index.clips.map(c=>c.participant))].sort((a,b)=>a-b);options($('participant'),state.participants.participants.map(p=>[String(p.id),`P${p.id}${p.motion?'':' · 仅日志，无3D'}`]),'3');for(const o of $('participant').options)o.disabled=!ps.includes(Number(o.value));$('participantInfo').textContent=`公开动捕 ${ps.length} 人；P${state.participants.log_only.join('、P')} 仅有手机日志，不能回放三维。缺失原因未在公开资料中说明。`;

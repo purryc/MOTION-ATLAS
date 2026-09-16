@@ -5,6 +5,7 @@ import numpy as np
 from analyze import B,clip_payload,DEVICES,TASKS
 
 SITE=B/'.tmp/public-site'
+TABLES=['coverage.csv','participant_summary.csv','participant_bootstrap.csv','paired_comparisons.csv','explorer_dwell_cells.csv','explorer_dwell_episodes.csv','explorer_height_cells.csv','whole_hand_task_summary.csv']
 def write(p,o):
  p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,ensure_ascii=False,allow_nan=False,separators=(',',':')))
 def binary(p,data):
@@ -18,6 +19,48 @@ def binary(p,data):
  assert np.array_equal(decoded,arr)
  with p.open('wb') as f:
   with gzip.GzipFile(fileobj=f,mode='wb',mtime=0,compresslevel=6) as g:g.write(shuffled)
+def processed_tables(out):
+ from zipfile import ZipFile,ZIP_DEFLATED
+ with ZipFile(out/'processed-tables.zip','w',ZIP_DEFLATED) as z:
+  for name in TABLES:z.write(B/'data'/name,'data/'+name)
+  for name in ['natural-dwell-height.json','calibration.json','phone-pose-repair.json']:
+   if (B/'outputs'/name).exists():z.write(B/'outputs'/name,'outputs/'+name)
+
+def thresholds_only():
+ """Extend dwell choices without re-encoding unchanged source-frame clips."""
+ out=SITE/'outputs';assert (out/'explorer/index.json').exists(),'Build the base static site first'
+ source=B/'outputs/explorer';paths=sorted(source.glob('P*.json'));expected=json.loads((out/'explorer/index.json').read_text())['records']
+ assert set(expected)=={p.stem for p in paths}
+ checks=[]
+ for path in paths:
+  rec=json.loads(path.read_text());old=json.loads((out/'explorer'/path.name).read_text())
+  assert rec['source']==old['source'] and set(rec['tasks'])==set(old['tasks']),path.name
+  for task,td in rec['tasks'].items():
+   old_eps=old['tasks'][task]['thresholds']['100']['episodes'];new_eps=td['thresholds']['100']['episodes']
+   key=lambda e:(e['start_frame'],e['end_frame'])
+   clips={key(e):e['public_clip'] for e in old_eps}
+   assert len(clips)==len(old_eps) and set(clips)=={key(e) for e in new_eps},(path.name,task,'100ms episodes drifted')
+   for threshold,choice in td['thresholds'].items():
+    eps=choice['episodes'];s=choice['summary']
+    assert s['episodes']==len(eps) and abs(s['total_ms']-sum(e['duration_ms'] for e in eps))<1e-5
+    assert bool(choice['home'])==bool(eps)
+    for e in eps:
+     assert e['duration_ms']+1e-5>=int(threshold) and key(e) in clips
+     e['public_clip']=clips[key(e)]
+    checks.append((path.stem,task,int(threshold),len(eps)))
+   for cid in clips.values():
+    assert (out/'dwell'/(cid+'.json')).exists() and (out/'dwell'/(cid+'.bin.gz')).exists(),cid
+  write(out/'explorer'/path.name,rec)
+ for name in ['index.json','report-controls.json','report.json']:
+  write(out/'explorer'/name,json.loads((source/name).read_text()))
+ for name in ['report.html','natural-dwell-height.json']:
+  shutil.copy(B/'outputs'/name,out/name)
+ processed_tables(out)
+ publication=out/'publication.json';manifest=json.loads(publication.read_text());manifest['dwell_thresholds_ms']=list(range(100,1001,100));write(publication,manifest)
+ extras=['outputs/explorer/'+p.name for p in paths]+['outputs/explorer/'+n for n in ['index.json','report-controls.json','report.json']]+['outputs/processed-tables.zip','outputs/publication.json']
+ write(B/'outputs/incremental-data-files.json',extras)
+ print(json.dumps(dict(records=len(paths),task_threshold_cells=len(checks),thresholds_ms=manifest['dwell_thresholds_ms'],site_bytes=sum(p.stat().st_size for p in SITE.rglob('*') if p.is_file()))),flush=True)
+
 def main(record=None):
  SITE.mkdir(parents=True,exist_ok=True);out=SITE/'outputs';out.mkdir(exist_ok=True)
  shutil.copytree(B/'src/viewer',SITE/'viewer',dirs_exist_ok=True);shutil.copy(B/'src/viewer/index.html',SITE/'index.html')
@@ -68,12 +111,7 @@ def main(record=None):
   print('Static records',n+1,'/',len(paths),'episodes',count,'elapsed',round(time.time()-starttime),flush=True)
  for name in ['index.json','report-controls.json','report.json']:
   write(out/'explorer'/name,json.loads((B/'outputs/explorer'/name).read_text()))
- from zipfile import ZipFile,ZIP_DEFLATED
- with ZipFile(out/'processed-tables.zip','w',ZIP_DEFLATED) as z:
-  for name in ['coverage.csv','participant_summary.csv','participant_bootstrap.csv','paired_comparisons.csv','explorer_dwell_cells.csv','explorer_dwell_episodes.csv','explorer_height_cells.csv','whole_hand_task_summary.csv']:
-   z.write(B/'data'/name,'data/'+name)
-  for name in ['natural-dwell-height.json','calibration.json','phone-pose-repair.json']:
-   if (B/'outputs'/name).exists():z.write(B/'outputs'/name,'outputs/'+name)
+ processed_tables(out)
  (SITE/'.nojekyll').touch()
  sizes=sum(p.stat().st_size for p in SITE.rglob('*') if p.is_file());assert sizes<1_000_000_000,f'Pages site too large: {sizes}'
  if record:
@@ -92,4 +130,6 @@ def main(record=None):
  print(json.dumps(manifest),flush=True)
 if __name__=='__main__':
  import argparse
- parser=argparse.ArgumentParser();parser.add_argument('--record');main(parser.parse_args().record)
+ parser=argparse.ArgumentParser();parser.add_argument('--record');parser.add_argument('--thresholds-only',action='store_true');args=parser.parse_args()
+ if args.thresholds_only:thresholds_only()
+ else:main(args.record)

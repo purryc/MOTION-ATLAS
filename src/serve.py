@@ -46,7 +46,7 @@ class Handler(BaseHTTPRequestHandler):
     return self.obj(md)
    if u.path=='/api/heat':
     name=q['record'][0];a,r=record(name);task=q['task'][0];scope=q['scope'][0];threshold=int(q['threshold'][0]);baseline=float(q['baseline'][0])
-    if task not in TASKS or scope not in ['home','activity'] or threshold not in [100,200,300,400,500,600] or not np.isfinite(baseline) or abs(baseline)>500:raise ValueError('Invalid heat parameters')
+    if task not in TASKS or scope not in ['home','activity'] or threshold not in range(100,1001,100) or not np.isfinite(baseline) or abs(baseline)>500:raise ValueError('Invalid heat parameters')
     mask=(a['task_context']==TASKS.index(task))&np.isfinite(a['local_mm'][:,0]).all(1)
     if scope=='home':
      choices=json.loads((B/'outputs/explorer'/(name+'.json')).read_text())['tasks'][task]['thresholds'][str(threshold)];stable=np.zeros(len(mask),dtype=bool)

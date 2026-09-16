@@ -1,13 +1,13 @@
 const labels={READ:'阅读',WRITE:'输入',TAP:'点击',DRAG:'拖动',SCROLL_V:'竖滚',SCROLL_H:'横滚'};
 const root=document.querySelector('#reportExplorer');
 async function init(){
- const res=await fetch('explorer/report-controls.json?v=1.1.4');if(!res.ok)throw Error('请先生成交互分析数据');const data=await res.json();
+ const res=await fetch('explorer/report-controls.json?v=1.1.5');if(!res.ok)throw Error('请先生成交互分析数据');const data=await res.json();
  const toggle=document.querySelector('#reportHeightToggle'),slider=document.querySelector('#reportDwellThreshold'),table=document.querySelector('table.data:not(.dwell-height-table)');
  const heads=Array.from(table.querySelectorAll('thead th')),heightIndex=heads.findIndex(h=>h.textContent==='Z / mm'),rows=Array.from(table.querySelectorAll('tbody tr')),tasks=Object.keys(labels);
  function height(){
   const corrected=toggle.checked;heads[heightIndex].textContent=corrected?'修正离屏 / mm':'Z / mm';rows.forEach((r,i)=>r.children[heightIndex].textContent=data.height[tasks[i]][corrected?'corrected':'raw'].text);
   for(const name of ['task_comparison','phone_condition','height_distribution']){
-   const img=document.querySelector(`img[src*="figures/${name}"]`),file=name+(corrected?'_corrected':'');img.src=`figures/${file}.png?v=1.1.4`;img.parentElement.href=`figures/${file}.svg?v=1.1.4`;img.alt=corrected?'参与者等权修正离屏参考高度（下限 0 mm）':name;
+   const img=document.querySelector(`img[src*="figures/${name}"]`),file=name+(corrected?'_corrected':'');img.src=`figures/${file}.png?v=1.1.5`;img.parentElement.href=`figures/${file}.svg?v=1.1.5`;img.alt=corrected?'参与者等权修正离屏参考高度（下限 0 mm）':name;
   }
   document.querySelector('#heightModeInfo').textContent=corrected?'修正参考 = max(0, 指甲 Z − 同记录触摸基线)，先逐帧取下限，再记录内汇总、参与者等权。此开关切换拇指绝对高度表和三张图；正文检验和其他手指保留原始研究结果。此量非指腹净距。':'原始指甲 Z：有符号屏幕坐标；切换可看修正后的非负离屏参考。正文检验和其他手指为原始研究结果。';
  }
